@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tesoritos - Envío Corporativo</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<style>
+body { background: #F5F5F5; font-family: 'Inter', sans-serif; color:#374151; }
+#map { height: 250px; width: 100%; border-radius: 0.75rem; margin-top: 0.5rem; }
+#preview { background: #FFFFFF; padding:1rem; margin-top:0.5rem; border-radius:1rem; font-size:0.95rem; color:#374151; border:2px solid #1E3A8A; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+#preview h3 { text-align:center; font-size:1.2rem; color:#1E3A8A; margin-bottom:0.5rem; }
+#preview .line { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px dashed #1E3A8A;}
+#preview .line:last-child { border:none; }
+#historial { margin-top:1rem; background:#FFFFFFCC; padding:1rem; border-radius:0.75rem; border:1px solid #1E3A8A; max-height:200px; overflow-y:auto; font-size:0.9rem; color:#374151;}
+#tesoritos-glow { text-shadow:0 0 5px #1E3A8A; color:#1E3A8A; }
+.form-card {animation:fadeInUp 1s ease forwards; opacity:0; transform:translateY(20px);}
+@keyframes fadeInUp { to { opacity:1; transform:translateY(0); } }
+.btn-grad { background:#1E3A8A; color:white; font-weight:bold; padding:0.5rem 1rem; border-radius:0.5rem; transition:all 0.3s ease;}
+.btn-grad:hover { transform:translateY(-2px); box-shadow:0 4px 8px rgba(0,0,0,0.2);}
+#confirmarBtn { background:#D4AF37; color:#111; font-weight:bold; padding:0.5rem 1rem; border-radius:0.5rem; margin-top:1rem; cursor:pointer;}
+#confirmarBtn:hover { background:#C4952E; }
+input, select, textarea { border-radius:0.5rem; padding:0.5rem 1rem; border:1px solid #9CA3AF; box-shadow:0 1px 3px rgba(0,0,0,0.05); background:#FFFFFF; color:#374151;}
+input:focus, select:focus, textarea:focus { outline:none; box-shadow:0 0 0 2px rgba(30,58,138,0.3);}
+input:valid, select:valid, textarea:valid { background-color:#E6F4EA; }
+footer { margin-top:2rem; text-align:center; padding:1rem; background:#1E3A8A; color:white; border-radius:1rem; width:100%; max-width:640px; font-weight:500; }
+footer span { color:#D4AF37; font-weight:bold; }
+</style>
+</head>
+<body class="flex flex-col items-center">
+
+<header class="text-center py-10 bg-white shadow-md flex flex-col items-center gap-4 w-full">
+<img src="imagenes/logo.jpg" alt="Tesoritos Logo" class="w-32 h-32 object-contain rounded-full shadow-md">
+<h1 id="tesoritos-glow" class="text-4xl font-bold">✨ Tesoritos ✨</h1>
+<p class="text-gray-700 mt-2 text-center max-w-xl text-lg">
+Joyería para dama 💎 | Accesorios con estilo ✨ | Emprendimiento 100% en línea 📲 | Productos al detalle 📝
+<br>
+Tu joyería favorita, sin salir de casa 💕 🇳🇮
+</p>
+</header>
+
+<div class="bg-white shadow-lg rounded-2xl p-8 w-full max-w-lg mt-6 form-card">
+<h2 class="text-2xl text-1E3A8A font-bold text-center mb-6">Formulario de Envío</h2>
+
+<form id="envioForm" class="flex flex-col gap-4">
+<label>Nombre de quien recibe:</label>
+<input type="text" id="nombre" name="nombre" required>
+
+<label>Celular:</label>
+<input type="tel" id="celular" name="celular" placeholder="Ej: 50512345" required>
+
+<label>¿Podemos Contactarle por WhatsApp?:</label>
+<select id="tieneWhatsapp" name="tieneWhatsapp" required>
+<option value="">Seleccione...</option>
+<option value="Sí">Sí</option>
+<option value="No">No</option>
+</select>
+
+<label>Dirección:</label>
+<input type="text" id="direccion" name="direccion" required>
+
+<label>Observaciones:</label>
+<textarea id="observaciones" name="observaciones" rows="3"></textarea>
+
+<label>Selecciona tu ubicación en el mapa (opcional):</label>
+<div id="map"></div>
+
+<label>Vista previa del mensaje (ticket corporativo):</label>
+<div id="preview">
+<h3>NUEVO ENVÍO</h3>
+<div class="line"><span>Nombre:</span><span>[Nombre]</span></div>
+<div class="line"><span>Celular:</span><span>[Celular]</span></div>
+<div class="line"><span>WhatsApp:</span><span>[WhatsApp]</span></div>
+<div class="line"><span>Dirección:</span><span>[Dirección]</span></div>
+<div class="line"><span>Observaciones:</span><span>[Sin observaciones]</span></div>
+<div class="line"><span>Ubicación:</span><span>[Ubicación no proporcionada]</span></div>
+</div>
+
+<div class="flex gap-2 mt-3 flex-col sm:flex-row">
+<button type="button" id="copiarMensaje" class="btn-grad flex-1">Copiar mensaje</button>
+<button type="button" id="confirmarBtn" class="flex-1">Enviar por WhatsApp</button>
+</div>
+</form>
+
+<div id="historial">
+<strong>Historial de envíos:</strong>
+<ul id="listaHistorial"></ul>
+</div>
+</div>
+
+<footer>
+✨ Tesoritos ✨ | Tu joyería favorita 💎 | Emprendimiento 100% en línea 📲
+</footer>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+// MAPA
+const map = L.map('map').setView([12.8654,-85.2072],7);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+let marker;
+map.on('click', e=>{ if(marker){marker.setLatLng(e.latlng);}else{marker=L.marker(e.latlng).addTo(map);} actualizarPreview(); });
+
+// CAMPOS Y EVENTOS
+const campos=['nombre','celular','tieneWhatsapp','direccion','observaciones'];
+campos.forEach(id=>{ 
+  const el=document.getElementById(id); 
+  el.addEventListener('input',()=>{ marcarLleno(el); actualizarPreview(); validarCamposObligatorios(); });
+});
+document.getElementById('tieneWhatsapp').addEventListener('change',()=>{ marcarLleno(document.getElementById('tieneWhatsapp')); actualizarPreview(); validarCamposObligatorios(); });
+
+// FONDO VERDE SUAVE
+function marcarLleno(el){ el.value.trim()!=='' ? el.style.backgroundColor='#E6F4EA' : el.style.backgroundColor='white'; }
+
+// VALIDACIONES
+document.getElementById('nombre').addEventListener('input', e=>{ 
+  e.target.value=e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g,''); 
+  marcarLleno(e.target); 
+  actualizarPreview(); 
+  validarCamposObligatorios();
+});
+document.getElementById('celular').addEventListener('input', e=>{ 
+  e.target.value=e.target.value.replace(/[^0-9]/g,'').slice(0,8); 
+  marcarLleno(e.target); 
+  actualizarPreview(); 
+  validarCamposObligatorios();
+});
+
+// VISTA PREVIA
+function actualizarPreview(){
+  const nombre=document.getElementById('nombre').value||'[Nombre]';
+  const celular=document.getElementById('celular').value||'[Celular]';
+  const whatsapp=document.getElementById('tieneWhatsapp').value||'[WhatsApp]';
+  const direccion=document.getElementById('direccion').value||'[Dirección]';
+  const observaciones=document.getElementById('observaciones').value||'[Sin observaciones]';
+  let ubicacion='[Ubicación no proporcionada]';
+  if(marker){ const lat=marker.getLatLng().lat.toFixed(6); const lng=marker.getLatLng().lng.toFixed(6); ubicacion=`https://www.google.com/maps?q=${lat},${lng}`; }
+  document.getElementById('preview').innerHTML=
+    `<h3>NUEVO ENVÍO</h3>
+     <div class="line"><span>Nombre:</span><span>${nombre}</span></div>
+     <div class="line"><span>Celular:</span><span>${celular}</span></div>
+     <div class="line"><span>WhatsApp:</span><span>${whatsapp}</span></div>
+     <div class="line"><span>Dirección:</span><span>${direccion}</span></div>
+     <div class="line"><span>Observaciones:</span><span>${observaciones}</span></div>
+     <div class="line"><span>Ubicación:</span><span><a href="${ubicacion}" target="_blank" style="color:#1E3A8A;text-decoration:underline;">Ver en mapa</a></span></div>`;
+}
+
+// MENSAJE WHATSAPP (solo texto plano)
+function generarMensajeWhatsApp(){
+  const nombre=document.getElementById('nombre').value||'[Nombre]';
+  const celular=document.getElementById('celular').value||'[Celular]';
+  const whatsapp=document.getElementById('tieneWhatsapp').value||'[WhatsApp]';
+  const direccion=document.getElementById('direccion').value||'[Dirección]';
+  const observaciones=document.getElementById('observaciones').value||'[Sin observaciones]';
+  let ubicacion='[Ubicación no proporcionada]';
+  if(marker){ 
+    const lat=marker.getLatLng().lat.toFixed(6); 
+    const lng=marker.getLatLng().lng.toFixed(6); 
+    ubicacion=`https://www.google.com/maps?q=${lat},${lng}`; 
+  }
+
+  const lineaSeparador="------------------------------";
+  const titulo="TESORITOS - NUEVO ENVÍO\nJoyería & Accesorios\n";
+
+  return `${titulo}${lineaSeparador}
+Nombre: ${nombre}
+Celular: ${celular}
+WhatsApp: ${whatsapp}
+Dirección: ${direccion}
+Observaciones: ${observaciones}
+Ubicación: ${ubicacion}
+${lineaSeparador}
+Gracias por tu preferencia.
+Enviado desde Tesoritos - Tu joyería favorita`;
+}
+
+// COPIAR
+document.getElementById('copiarMensaje').addEventListener('click', ()=>{
+  navigator.clipboard.writeText(document.getElementById('preview').innerText).then(()=>{alert('Mensaje copiado ✅');});
+});
+
+// HISTORIAL
+function cargarHistorial(){ 
+  const lista=document.getElementById('listaHistorial'); 
+  lista.innerHTML=''; 
+  const historial=JSON.parse(localStorage.getItem('historialEnvios')||'[]'); 
+  historial.forEach(item=>{ const li=document.createElement('li'); li.innerText=item; lista.appendChild(li); }); 
+}
+cargarHistorial();
+
+// VALIDACIÓN DE BOTÓN Y CAMPOS OBLIGATORIOS
+const confirmarBtn = document.getElementById('confirmarBtn');
+function validarCamposObligatorios(){
+  const nombre = document.getElementById('nombre').value.trim();
+  const celular = document.getElementById('celular').value.trim();
+  const whatsapp = document.getElementById('tieneWhatsapp').value.trim();
+  const direccion = document.getElementById('direccion').value.trim();
+
+  // Celular debe ser exactamente 8 dígitos
+  const celularValido = /^\d{8}$/.test(celular);
+
+  if(nombre && celularValido && whatsapp && direccion){
+    confirmarBtn.disabled = false;
+    confirmarBtn.style.opacity = '1';
+    confirmarBtn.style.cursor = 'pointer';
+  } else {
+    confirmarBtn.disabled = true;
+    confirmarBtn.style.opacity = '0.6';
+    confirmarBtn.style.cursor = 'not-allowed';
+  }
+}
+
+// BOTÓN CONFIRMAR CON ALERTA
+confirmarBtn.addEventListener('click', ()=>{
+  const nombre = document.getElementById('nombre').value.trim();
+  const celular = document.getElementById('celular').value.trim();
+  const whatsapp = document.getElementById('tieneWhatsapp').value.trim();
+  const direccion = document.getElementById('direccion').value.trim();
+
+  if(!nombre || !celular || !whatsapp || !direccion || !/^\d{8}$/.test(celular)){
+    alert("Por favor, completa todos los campos obligatorios y asegúrate de que el celular tenga 8 dígitos.");
+    return;
+  }
+
+  if(confirm("¿Confirmas que los datos son correctos y deseas enviar el mensaje por WhatsApp?")){
+    const mensaje=generarMensajeWhatsApp();
+    const historial=JSON.parse(localStorage.getItem('historialEnvios')||'[]');
+    historial.unshift(mensaje); if(historial.length>10) historial.pop();
+    localStorage.setItem('historialEnvios', JSON.stringify(historial));
+    cargarHistorial();
+    const numeroDestino="50558540223";
+    window.open(`https://wa.me/${numeroDestino}?text=${encodeURIComponent(mensaje)}`, '_blank');
+  }
+});
+
+// Inicializar validación al cargar
+validarCamposObligatorios();
+
+</script>
+</body>
+</html>
